@@ -1,4 +1,4 @@
-# dsh-usb
+# dsh-portable
 
 把官方 DeepSeek Harness（网页版 `dsh web`）装进 U 盘，插到任何电脑上都能跑。支持 Apple Silicon Mac 和 64 位 Windows。
 
