@@ -1,0 +1,3 @@
+# Windows 文件保持 CRLF，原样存储
+*.bat -text
+src/使用说明.txt -text

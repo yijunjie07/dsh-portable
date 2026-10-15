@@ -1,0 +1,75 @@
+#!/bin/bash
+# 用官方桌面版构建 U 盘上的 DeepSeek Harness 便携版。
+#   ./build.sh               下载官方包并生成 out/ 里的两个镜像
+#   ./build.sh /Volumes/U盘  生成镜像并安装到 U 盘
+# 需要：hdiutil（macOS 自带）、7zz（brew install sevenzip）、npx（Node.js）
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+FEED=https://download.deepseek.com/dsh-desk/feeds
+DL="$HERE/downloads" WORK="$HERE/work" OUT="$HERE/out" SRC="$HERE/src"
+mkdir -p "$DL" "$WORK" "$OUT"
+
+# 从官方更新源读出安装包地址和 SHA512，下载（已有则复用）并校验，结果放在 $FETCHED
+# （不用 $(fetch …)：bash 3.2 的 set -e 在命令替换里不生效）
+fetch() {
+  local yml url sha file
+  yml="$(curl -fsS "$FEED/$1")" || { echo "读取更新源失败：$FEED/$1" >&2; exit 1; }
+  url="$(awk '/^path:/{getline; print $1}' <<<"$yml")"
+  sha="$(awk '/^sha512:/{getline; print $1}' <<<"$yml")"
+  [ -n "$url" ] && [ -n "$sha" ] || { echo "读不懂更新源 $FEED/$1" >&2; exit 1; }
+  file="$DL/$(basename "$url")"
+  [ -f "$file" ] || { echo "下载 $url" >&2; curl -fL# -o "$file.part" "$url" && mv "$file.part" "$file"; }
+  [ "$(openssl dgst -sha512 -binary "$file" | base64)" = "$sha" ] || { echo "SHA512 不符：$file" >&2; exit 1; }
+  FETCHED="$file"
+}
+
+# 镜像内容：dsh/（官方 dsh 运行树）、runtime/（官方 Node、Python、Office skills）和两个小文件
+stage() {
+  local dir="$1" resources="$2"
+  rm -rf "$dir" && mkdir -p "$dir"
+  npx -y @electron/asar extract "$resources/app.asar" "$dir/asar"
+  mv "$dir/asar/dsh" "$dir/dsh" && rm -rf "$dir/asar"
+  ditto "$resources/runtime" "$dir/runtime"
+  cp "$SRC/python.patch.yml" "$SRC/exfat-link.mjs" "$dir/"
+}
+
+# 预编译 .pyc：镜像只读，不预编译的话 Python 每次启动都要重新编译
+compile_python() {
+  "$PYTHON" -m compileall -q -j0 --invalidation-mode unchecked-hash "$1" >/dev/null || true
+}
+
+fetch mac-arm64/nightly-mac.yml; MAC_ZIP="$FETCHED"
+fetch win-x64/nightly.yml;     WIN_EXE="$FETCHED"
+
+echo "== mac-arm64"
+rm -rf "$WORK/mac" && mkdir -p "$WORK/mac"
+ditto -x -k "$MAC_ZIP" "$WORK/mac"
+stage "$WORK/mac/stage" "$WORK/mac/DeepSeek Harness.app/Contents/Resources"
+PYTHON="$WORK/mac/stage/runtime/primary-runtime/dependencies/python/bin/python3"
+compile_python "$WORK/mac/stage/runtime/primary-runtime/dependencies/python/lib"
+
+echo "== win-x64"
+rm -rf "$WORK/win" && mkdir -p "$WORK/win"
+7zz e -y -bso0 -o"$WORK/win" "$WIN_EXE" '$PLUGINSDIR/app-64.7z'
+7zz x -y -bso0 -o"$WORK/win/app" "$WORK/win/app-64.7z" && rm "$WORK/win/app-64.7z"
+stage "$WORK/win/stage" "$WORK/win/app/resources"
+compile_python "$WORK/win/stage/runtime/primary-runtime/dependencies/python/Lib"   # 两边都是 Python 3.12，.pyc 通用
+
+echo "== images"
+rm -f "$OUT/dsh-mac-arm64.dmg" "$OUT/dsh-win-x64.iso"
+hdiutil create -quiet -srcfolder "$WORK/mac/stage" -volname dsh-mac-arm64 -fs HFS+ -format ULFO "$OUT/dsh-mac-arm64.dmg"
+hdiutil makehybrid -quiet -iso -joliet -udf -default-volume-name DSH_WIN_X64 -o "$OUT/dsh-win-x64.iso" "$WORK/win/stage"
+ls -lh "$OUT"
+
+if [ $# -gt 0 ]; then
+  USB="$1"
+  [ -d "$USB" ] || { echo "找不到 $USB" >&2; exit 1; }
+  echo "== 安装到 $USB"
+  # -X：不复制扩展属性，免得在 exFAT 上多出 ._ 文件
+  cp -X "$SRC/DSH-Mac.command" "$SRC/DSH-Windows.bat" "$SRC/使用说明.txt" "$USB/"
+  cp -X "$OUT/dsh-mac-arm64.dmg" "$OUT/dsh-win-x64.iso" "$USB/"
+  mkdir -p "$USB/home"
+  dot_clean -m "$USB" 2>/dev/null || true   # 删掉 macOS 在 exFAT 上生成的 ._ 文件
+  sync
+  echo "完成。"
+fi
