@@ -5,9 +5,11 @@ Mac（Apple Silicon）：双击 DSH-Mac.command
 Windows（64 位）：双击 DSH-Windows.bat
 
 启动后浏览器会自动打开 DeepSeek Harness 网页版。
+终端窗口里也会显示网址，浏览器关了可以用它重新打开。
+第一次在某台电脑上用时，在网页里添加这台电脑上的项目文件夹作为工作区。
 用完关掉那个黑色的命令行窗口即可。
 
-home\            你的配置、API key、会话记录（两个系统共用）
+home\            你的 API key、设置、会话记录（所有电脑共用）
 dsh-*.dmg/.iso   程序镜像（只读，不要改）
 dsh-win-x64\     只在不能挂载镜像的 Windows 电脑上才会出现，可以删掉
 

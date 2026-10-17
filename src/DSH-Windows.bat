@@ -53,6 +53,9 @@ if (-not $App) {
 
 $env:DSH_HOME = Join-Path $Root 'home'
 $env:DSH_PRIMARY_RUNTIME = Join-Path $App 'runtime\primary-runtime'
+# 这台电脑的标识：用户名-MachineGuid 前 8 位，工作区登记表按它分开存
+$guid = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Cryptography').MachineGuid
+$env:DSH_MACHINE = "$env:USERNAME-$($guid.Substring(0, 8))"
 New-Item -ItemType Directory -Force -Path $env:DSH_HOME | Out-Null
 
 $node = Join-Path $env:DSH_PRIMARY_RUNTIME 'dependencies\node\bin\node.exe'
@@ -60,9 +63,10 @@ $node = Join-Path $env:DSH_PRIMARY_RUNTIME 'dependencies\node\bin\node.exe'
 $shim = ([Uri](Join-Path $App 'exfat-link.mjs')).AbsoluteUri
 $cli = Join-Path $App 'dsh\node_modules\@deepseek-ai\dsh-desktop-host\lib\cli.js'
 Set-Location -LiteralPath $env:USERPROFILE
+Write-Host '正在启动 DeepSeek Harness，在这台电脑上第一次运行可能要等一分钟左右，好了浏览器会自动打开……' -ForegroundColor Yellow
 try {
   # dsh 输出原样显示，碰到网址时额外用醒目的框再打印一遍
-  & $node --expose-internals --import $shim $cli web --patch (Join-Path $App 'python.patch.yml') | ForEach-Object {
+  & $node --expose-internals --import $shim $cli web --patch (Join-Path $App 'python.patch.yml') --patch (Join-Path $App 'per-machine.patch.yml') | ForEach-Object {
     Write-Host $_
     if ($_ -match 'http://\S+') {
       $line = '=' * 56

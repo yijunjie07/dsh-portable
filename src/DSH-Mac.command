@@ -20,6 +20,10 @@ trap 'hdiutil detach -quiet "$MOUNT" 2>/dev/null; dot_clean -m "$ROOT" 2>/dev/nu
 
 export DSH_HOME="$ROOT/home"
 export DSH_PRIMARY_RUNTIME="$MOUNT/runtime/primary-runtime"
+# 这台电脑的标识：用户名-硬件 UUID 前 8 位，工作区登记表按它分开存
+# （不要写成 "$(… awk -F'"' …)"：macOS 自带的 bash 3.2 会解析错）
+uuid=$(ioreg -rd1 -c IOPlatformExpertDevice | awk -F'"' '/IOPlatformUUID/{print $4}')
+export DSH_MACHINE="$(id -un)-${uuid:0:8}"
 mkdir -p "$DSH_HOME"
 
 # dsh 输出原样显示，碰到网址时额外用醒目的框再打印一遍
@@ -43,4 +47,4 @@ cd "$HOME"
 "$DSH_PRIMARY_RUNTIME/dependencies/node/bin/node" --expose-internals \
   --import "$MOUNT/exfat-link.mjs" \
   "$MOUNT/dsh/node_modules/@deepseek-ai/dsh-desktop-host/lib/cli.js" \
-  web --patch "$MOUNT/python.patch.yml" "$@" | show_url
+  web --patch "$MOUNT/python.patch.yml" --patch "$MOUNT/per-machine.patch.yml" "$@" | show_url

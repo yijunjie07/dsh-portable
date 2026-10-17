@@ -1,0 +1,8 @@
+# Each computer gets its own storages (workspace registry, session list cache).
+# The workspace registry stores absolute paths that only exist on the computer
+# that created them; sharing it makes a new computer try to mkdir another
+# machine's home directory. The launcher sets DSH_MACHINE to "<user>-<machine id>".
+# Credentials, profile settings and session logs stay shared in DSH_HOME.
+- id: storage-json
+  config:
+    root: !!js "dshHomePath('machines', process.env.DSH_MACHINE || 'default', 'storages')"
