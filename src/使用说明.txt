@@ -10,6 +10,7 @@ Windows（64 位）：双击 DSH-Windows.bat
 用完关掉那个黑色的命令行窗口即可。
 
 home\            你的 API key、设置、会话记录（所有电脑共用）
+home\share-space.json  左侧栏「共享空间」当前加入的空间口令（别外传）
 dsh-*.dmg/.iso   程序镜像（只读，不要改）
 dsh-win-x64\     只在不能挂载镜像的 Windows 电脑上才会出现，可以删掉
 

@@ -1,0 +1,30 @@
+# 共享空间服务端。放到服务器的 /opt/share-space/，同目录的 .env 里写 SHARE_CREATE_CODE=<创建码>。
+# 挂在 Caddy 所在的 new-api-network 上，不对外开端口，由 Caddy 反代并提供 HTTPS。
+services:
+  share-space:
+    image: python:3.12-alpine
+    container_name: share-space
+    restart: unless-stopped
+    user: "1000:1000"
+    command: ["python", "-u", "/app/share-space-server.py"]
+    env_file: .env
+    environment:
+      SHARE_DIR: /data
+      SHARE_PORT: "8080"
+      SHARE_MAX_FILE_MB: "2048"
+      SHARE_MAX_SPACE_MB: "2048"
+      SHARE_MAX_TOTAL_MB: "10240"
+    volumes:
+      - ./share-space-server.py:/app/share-space-server.py:ro
+      - ./data:/data
+    networks:
+      - new-api-network
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+networks:
+  new-api-network:
+    external: true

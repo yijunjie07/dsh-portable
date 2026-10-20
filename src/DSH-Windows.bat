@@ -66,7 +66,7 @@ Set-Location -LiteralPath $env:USERPROFILE
 Write-Host '正在启动 DeepSeek Harness，在这台电脑上第一次运行可能要等一分钟左右，好了浏览器会自动打开……' -ForegroundColor Yellow
 try {
   # dsh 输出原样显示，碰到网址时额外用醒目的框再打印一遍
-  & $node --expose-internals --import $shim $cli web --patch (Join-Path $App 'python.patch.yml') --patch (Join-Path $App 'per-machine.patch.yml') | ForEach-Object {
+  & $node --expose-internals --import $shim $cli web --patch (Join-Path $App 'python.patch.yml') --patch (Join-Path $App 'per-machine.patch.yml') --patch (Join-Path $App 'share-space.patch.yml') | ForEach-Object {
     Write-Host $_
     if ($_ -match 'http://\S+') {
       $line = '=' * 56

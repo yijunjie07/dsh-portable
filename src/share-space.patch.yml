@@ -1,0 +1,9 @@
+# 共享空间：左侧栏的「共享空间」页。文件存在公网服务器上，输入同一个口令的人在同一个空间里。
+# 插件包在镜像的 dsh/node_modules/dsh-portable-share-space（build.sh 从 src/share-space 拷进去）。
+# 当前加入的空间（口令、创建者的解散钥匙）由插件记在 U 盘的 home/share-space.json。
+- insert:
+    - id: share-space
+      name: dsh-portable-share-space
+      config:
+        url: https://mochif.com/share-space
+        configFile: !!js "dshHomePath('share-space.json')"

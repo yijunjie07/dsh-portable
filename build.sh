@@ -23,15 +23,28 @@ fetch() {
   FETCHED="$file"
 }
 
-# 镜像内容：dsh/（官方 dsh 运行树）、runtime/（官方 Node、Python、Office skills）和几个小文件
+# 镜像内容：dsh/（官方 dsh 运行树，外加共享空间插件）、runtime/（官方 Node、Python、Office skills）和几个小文件
 stage() {
   local dir="$1" resources="$2"
   rm -rf "$dir" && mkdir -p "$dir"
   npx -y @electron/asar extract "$resources/app.asar" "$dir/asar"
   mv "$dir/asar/dsh" "$dir/dsh" && rm -rf "$dir/asar"
   ditto "$resources/runtime" "$dir/runtime"
-  cp "$SRC/per-machine.patch.yml" "$SRC/exfat-link.mjs" "$dir/"
+  cp "$SRC/per-machine.patch.yml" "$SRC/share-space.patch.yml" "$SRC/exfat-link.mjs" "$dir/"
+  share_space "$dir"
   python_patch "$dir"
+}
+
+# 共享空间插件：放进 dsh 运行树，并登记为 @deepseek-ai/dsh 的依赖。
+# dsh 只认安装锚点（@deepseek-ai/dsh/package.json）依赖闭包里的包，--patch 里的插件名才能解析到它。
+share_space() {
+  local pkg="$1/dsh/node_modules/@deepseek-ai/dsh/package.json"
+  cp -R "$SRC/share-space" "$1/dsh/node_modules/dsh-portable-share-space"
+  node -e '
+    const fs = require("fs"), [file, version] = process.argv.slice(1), pkg = JSON.parse(fs.readFileSync(file, "utf8"));
+    pkg.dependencies["dsh-portable-share-space"] = version;
+    fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + "\n");
+  ' "$pkg" "$(node -p 'require(process.argv[1]).version' "$SRC/share-space/package.json")"
 }
 
 # 网页版默认不加载随包的 Python 和 Office skills，SDK 版会加载。

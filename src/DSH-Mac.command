@@ -47,4 +47,5 @@ cd "$HOME"
 "$DSH_PRIMARY_RUNTIME/dependencies/node/bin/node" --expose-internals \
   --import "$MOUNT/exfat-link.mjs" \
   "$MOUNT/dsh/node_modules/@deepseek-ai/dsh-desktop-host/lib/cli.js" \
-  web --patch "$MOUNT/python.patch.yml" --patch "$MOUNT/per-machine.patch.yml" "$@" | show_url
+  web --patch "$MOUNT/python.patch.yml" --patch "$MOUNT/per-machine.patch.yml" \
+  --patch "$MOUNT/share-space.patch.yml" "$@" | show_url
