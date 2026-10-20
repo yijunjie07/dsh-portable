@@ -16,6 +16,7 @@ services:
       SHARE_MAX_TOTAL_MB: "10240"
     volumes:
       - ./share-space-server.py:/app/share-space-server.py:ro
+      - ./web:/app/web:ro
       - ./data:/data
     networks:
       - new-api-network

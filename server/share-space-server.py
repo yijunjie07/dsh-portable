@@ -6,6 +6,10 @@
 - 创建空间要创建码（只有服务器主人知道，告诉信得过的人），加入空间只要空间口令。
 - 口令不落盘：空间目录名是口令的 SHA-256。创建者拿到一把解散钥匙，凭它能把整个空间删掉。
 - 按 IP 限制试错次数（口令不存在、创建码不对），防止猜口令。
+- 同一个地址还提供手机也能用的网页（web/ 目录）。网页打开文件时没法带请求头，所以口令验证通过后
+  发一个只在 /share-space/ 路径下有效的 HttpOnly cookie。
+- 网页和别的站点同域名，别人上传的文件一律 CSP sandbox + nosniff：图片、音视频可以直接显示，
+  文本类按纯文本显示，其余一律下载，免得文件里的脚本借这个域名运行。
 
 环境变量：
   SHARE_CREATE_CODE   创建码（必填，至少 8 个字符）
@@ -15,17 +19,21 @@
   SHARE_MAX_FILE_MB   单个文件上限，默认 2048
   SHARE_MAX_SPACE_MB  每个空间的上限，默认 2048
   SHARE_MAX_TOTAL_MB  所有空间加起来的上限，默认 10240
+  SHARE_COOKIE_PATH   网页 cookie 的路径，默认 /share-space/（Caddy 去掉前缀前的路径）
 
-接口（空间口令放在 Authorization: Bearer <base64url(UTF-8 口令)>）：
+接口（空间口令放在 Authorization: Bearer <base64url(UTF-8 口令)>，网页用 cookie）：
+  GET    /              网页（还有 /app.js、/app.css、/icon.svg）
+  POST   /session       验证口令并发 cookie；DELETE /session 清掉 cookie
   POST   /spaces        创建空间，另带 X-Create-Code；返回解散钥匙 ownerKey
   GET    /space         空间信息（加入时用来确认空间存在）
   DELETE /space         解散空间，另带 X-Owner-Key
   GET    /files         文件列表和用量
-  GET    /files/<名字>  下载
+  GET    /files/<名字>  下载；?inline=1 时安全的类型直接显示；支持 Range（手机播放视频要用）
   PUT    /files/<名字>  上传，请求体就是文件内容；重名时自动改名，返回实际文件名
   DELETE /files/<名字>  删除
 """
 import base64
+import re
 import hashlib
 import hmac
 import json
@@ -40,7 +48,7 @@ import unicodedata
 from email.utils import formatdate
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import quote, unquote
+from urllib.parse import parse_qs, quote, unquote
 
 CREATE_CODE = os.environ.get("SHARE_CREATE_CODE", "")
 ROOT = os.path.abspath(os.environ.get("SHARE_DIR", "/data"))
@@ -52,6 +60,16 @@ MAX_FILE = int(os.environ.get("SHARE_MAX_FILE_MB", "2048")) * MB
 MAX_SPACE = int(os.environ.get("SHARE_MAX_SPACE_MB", "2048")) * MB
 MAX_TOTAL = int(os.environ.get("SHARE_MAX_TOTAL_MB", "10240")) * MB
 MIN_PASSPHRASE, MAX_PASSPHRASE = 8, 128
+COOKIE_NAME = "share_space"
+COOKIE_PATH = os.environ.get("SHARE_COOKIE_PATH", "/share-space/")
+WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
+WEB_FILES = {"": ("index.html", "text/html; charset=utf-8"), "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+             "/app.css": ("app.css", "text/css; charset=utf-8"), "/icon.svg": ("icon.svg", "image/svg+xml")}
+PAGE_CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self'; "
+            "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
+FILE_CSP = "sandbox; default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'"
+INLINE_TYPES = re.compile(r"^(image/(png|jpeg|gif|webp|avif|bmp)|audio/[\w.+-]+|video/[\w.+-]+)$")
+TEXT_EXTENSIONS = re.compile(r"\.(txt|md|markdown|log|csv|tsv|json|ya?ml|toml|ini|cfg|conf|xml|c|h|cc|cpp|hpp|py|js|mjs|ts|tsx|jsx|java|go|rs|rb|sh|bat|ps1|sql|css|scss|html?|vue|kt|swift|lua)$", re.I)
 CHUNK = 1024 * 1024
 TEMP_PREFIX = ".upload-"
 
@@ -169,10 +187,13 @@ class Handler(BaseHTTPRequestHandler):
     def passphrase(self):
         """从 Authorization 里取出口令；格式不对时回 400 并返回 None。"""
         given = self.headers.get("Authorization", "")
-        if not given.startswith("Bearer "):
-            return self.fail(HTTPStatus.UNAUTHORIZED, "no-passphrase", "缺少空间口令")
-        try:
+        if given.startswith("Bearer "):
             token = given[len("Bearer "):].strip()
+        else:
+            token = self.cookie()
+            if not token:
+                return self.fail(HTTPStatus.UNAUTHORIZED, "no-passphrase", "缺少空间口令")
+        try:
             text = base64.urlsafe_b64decode(token + "=" * (-len(token) % 4)).decode("utf-8")
         except (ValueError, UnicodeDecodeError):
             return self.fail(HTTPStatus.BAD_REQUEST, "bad-passphrase", "口令格式不对")
@@ -180,6 +201,16 @@ class Handler(BaseHTTPRequestHandler):
         if not MIN_PASSPHRASE <= len(text) <= MAX_PASSPHRASE:
             return self.fail(HTTPStatus.BAD_REQUEST, "bad-passphrase", f"口令要 {MIN_PASSPHRASE} 到 {MAX_PASSPHRASE} 个字符")
         return text
+
+    def cookie(self):
+        for part in self.headers.get("Cookie", "").split(";"):
+            key, _, value = part.strip().partition("=")
+            if key == COOKIE_NAME:
+                return value
+        return ""
+
+    def set_cookie(self, token, max_age):
+        self.send_header("Set-Cookie", f"{COOKIE_NAME}={token}; Path={COOKIE_PATH}; Max-Age={max_age}; HttpOnly; Secure; SameSite=Strict")
 
     def space(self):
         """找到口令对应的空间目录；不存在时记一次失败。"""
@@ -210,6 +241,26 @@ class Handler(BaseHTTPRequestHandler):
     def route(self):
         return self.path.split("?", 1)[0].rstrip("/")
 
+    def query(self):
+        return parse_qs(self.path.split("?", 1)[1]) if "?" in self.path else {}
+
+    def serve_web(self, route):
+        name, content_type = WEB_FILES[route]
+        try:
+            with open(os.path.join(WEB_DIR, name), "rb") as f:
+                body = f.read()
+        except FileNotFoundError:
+            return self.fail(HTTPStatus.NOT_FOUND, "not-found", "网页文件不存在")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Content-Security-Policy", PAGE_CSP)
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.end_headers()
+        self.wfile.write(body)
+
     def info(self, sid, directory):
         files, used = scan(directory)
         with open(os.path.join(SPACES, sid + ".json")) as f:
@@ -220,6 +271,15 @@ class Handler(BaseHTTPRequestHandler):
         }
 
     def do_POST(self):
+        if self.route() == "/session":
+            found = self.space()
+            if found:
+                token = self.headers.get("Authorization", "")[len("Bearer "):].strip() or self.cookie()
+                self.send_response(HTTPStatus.NO_CONTENT)
+                self.set_cookie(token, 400 * 24 * 3600)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+            return
         if self.route() != "/spaces":
             return self.fail(HTTPStatus.NOT_FOUND, "not-found", "没有这个接口")
         if self.throttled():
@@ -250,6 +310,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         route = self.route()
+        if route in WEB_FILES:
+            return self.serve_web(route)
         if route == "/space":
             found = self.space()
             if found:
@@ -272,15 +334,50 @@ class Handler(BaseHTTPRequestHandler):
         except (FileNotFoundError, IsADirectoryError):
             return self.fail(HTTPStatus.NOT_FOUND, "no-file", "文件不存在")
         with f:
-            st = os.fstat(f.fileno())
-            self.send_response(HTTPStatus.OK)
-            self.send_header("Content-Type", mimetypes.guess_type(name)[0] or "application/octet-stream")
-            self.send_header("Content-Length", str(st.st_size))
-            self.send_header("Last-Modified", formatdate(st.st_mtime, usegmt=True))
-            self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quote(name)}")
+            size = os.fstat(f.fileno()).st_size
+            mtime = os.fstat(f.fileno()).st_mtime
+            # 只有图片、音视频保留真实类型（dsh 插件据此决定能否预览）；?inline=1 时文本类按纯文本显示；其余都是下载
+            query = self.query()
+            guessed = mimetypes.guess_type(name)[0] or ""
+            safe = bool(INLINE_TYPES.match(guessed)) and "download" not in query
+            content_type = guessed if safe else "application/octet-stream"
+            inline = "inline" in query and safe
+            if "inline" in query and not safe and "download" not in query and TEXT_EXTENSIONS.search(name):
+                content_type, inline = "text/plain; charset=utf-8", True
+            # 单段 Range：手机浏览器播放视频要用
+            start, end = 0, size - 1
+            ranged = re.fullmatch(r"bytes=(\d*)-(\d*)", self.headers.get("Range", "").strip())
+            if ranged and size > 0 and (ranged.group(1) or ranged.group(2)):
+                if ranged.group(1):
+                    start = int(ranged.group(1))
+                    end = min(int(ranged.group(2)), size - 1) if ranged.group(2) else size - 1
+                else:
+                    start = max(size - int(ranged.group(2)), 0)
+                if start > end or start >= size:
+                    self.send_response(HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
+                    self.send_header("Content-Range", f"bytes */{size}")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+            else:
+                ranged = None
+            self.send_response(HTTPStatus.PARTIAL_CONTENT if ranged else HTTPStatus.OK)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(end - start + 1))
+            if ranged:
+                self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+            self.send_header("Accept-Ranges", "bytes")
+            self.send_header("Last-Modified", formatdate(mtime, usegmt=True))
+            self.send_header("Content-Disposition", f"{'inline' if inline else 'attachment'}; filename*=UTF-8''{quote(name)}")
+            self.send_header("Content-Security-Policy", FILE_CSP)
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Cache-Control", "private, no-cache")
             self.end_headers()
-            while chunk := f.read(CHUNK):
+            f.seek(start)
+            remaining = end - start + 1
+            while remaining > 0 and (chunk := f.read(min(CHUNK, remaining))):
                 self.wfile.write(chunk)
+                remaining -= len(chunk)
 
     def do_PUT(self):
         name = self.target()
@@ -337,6 +434,12 @@ class Handler(BaseHTTPRequestHandler):
                 os.unlink(temp)
 
     def do_DELETE(self):
+        if self.route() == "/session":
+            self.send_response(HTTPStatus.NO_CONTENT)
+            self.set_cookie("", 0)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if self.route() == "/space":
             return self.dissolve()
         name = self.target()
