@@ -1,6 +1,4 @@
-# 加在 Caddyfile 的 mochif.com { … } 里，放在其他 handle 前面：
-	# 共享空间（dsh-portable 的插件和手机网页），去掉前缀后交给 share-space 容器
-	redir /share-space /share-space/ 308
-	handle_path /share-space/* {
-		reverse_proxy share-space:8080
-	}
+# 共享空间（dsh-portable 的插件和手机网页）用单独的子域名，加在 Caddyfile 里：
+c.mochif.com {
+	reverse_proxy share-space:8080
+}

@@ -7,8 +7,8 @@
 - 口令不落盘：空间目录名是口令的 SHA-256。创建者拿到一把解散钥匙，凭它能把整个空间删掉。
 - 按 IP 限制试错次数（口令不存在、创建码不对），防止猜口令。
 - 同一个地址还提供手机也能用的网页（web/ 目录）。网页打开文件时没法带请求头，所以口令验证通过后
-  发一个只在 /share-space/ 路径下有效的 HttpOnly cookie。
-- 网页和别的站点同域名，别人上传的文件一律 CSP sandbox + nosniff：图片、音视频可以直接显示，
+  发一个 HttpOnly cookie。
+- 网页和别的站点同在 mochif.com 下，别人上传的文件一律 CSP sandbox + nosniff：图片、音视频可以直接显示，
   文本类按纯文本显示，其余一律下载，免得文件里的脚本借这个域名运行。
 
 环境变量：
@@ -19,7 +19,7 @@
   SHARE_MAX_FILE_MB   单个文件上限，默认 2048
   SHARE_MAX_SPACE_MB  每个空间的上限，默认 2048
   SHARE_MAX_TOTAL_MB  所有空间加起来的上限，默认 10240
-  SHARE_COOKIE_PATH   网页 cookie 的路径，默认 /share-space/（Caddy 去掉前缀前的路径）
+  SHARE_COOKIE_PATH   网页 cookie 的路径，默认 /（挂在子路径下时改成那个路径，如 /share-space/）
 
 接口（空间口令放在 Authorization: Bearer <base64url(UTF-8 口令)>，网页用 cookie）：
   GET    /              网页（还有 /app.js、/app.css、/icon.svg）
@@ -61,7 +61,7 @@ MAX_SPACE = int(os.environ.get("SHARE_MAX_SPACE_MB", "2048")) * MB
 MAX_TOTAL = int(os.environ.get("SHARE_MAX_TOTAL_MB", "10240")) * MB
 MIN_PASSPHRASE, MAX_PASSPHRASE = 8, 128
 COOKIE_NAME = "share_space"
-COOKIE_PATH = os.environ.get("SHARE_COOKIE_PATH", "/share-space/")
+COOKIE_PATH = os.environ.get("SHARE_COOKIE_PATH", "/")
 WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 WEB_FILES = {"": ("index.html", "text/html; charset=utf-8"), "/app.js": ("app.js", "text/javascript; charset=utf-8"),
              "/app.css": ("app.css", "text/css; charset=utf-8"), "/icon.svg": ("icon.svg", "image/svg+xml")}

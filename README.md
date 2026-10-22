@@ -35,10 +35,10 @@ home/                DSH_HOME：API key、设置、会话（所有电脑共用�
 
 ## 共享空间插件
 
-dsh 左侧栏多一个「共享空间」：文件存在公网服务器上（`https://mochif.com/share-space`），输入同一个口令的人在同一个空间里，可以上传、查看、下载、删除。
+dsh 左侧栏多一个「共享空间」：文件存在公网服务器上（`https://c.mochif.com`），输入同一个口令的人在同一个空间里，可以上传、查看、下载、删除。
 
 - **加入 / 创建**：在页面里输入别人给的口令就加入；输入新口令和创建码就建一个新空间。创建码只有服务器主人知道（服务器 `/opt/share-space/.env` 里的 `SHARE_CREATE_CODE`），这样陌生人建不了空间。每份 dsh 同一时间只在一个空间里，口令记在 U 盘的 `home/share-space.json`，换电脑也还在。
-- **手机网页**：手机、平板或没装 dsh 的电脑，直接用浏览器打开 `https://mochif.com/share-space/`，功能和插件一样。图片显示成缩略图，点开看大图、左右滑动切换，长按能保存到相册；视频、音频能直接播放。网页在这台设备上记住口令，cookie 只在 `/share-space/` 路径下有效。
+- **手机网页**：手机、平板或没装 dsh 的电脑，直接用浏览器打开 `https://c.mochif.com/`，功能和插件一样。图片显示成缩略图，点开看大图、左右滑动切换，长按能保存到相册；视频、音频能直接播放。网页在这台设备上记住口令，cookie 只在 c.mochif.com 下有效。
 - **退出 / 解散**：谁都能退出（空间和文件还在，用口令还能再加入）；创建者那份 dsh 记着一把解散钥匙，能把整个空间连同文件删掉。
 - `src/share-space/`：dsh 插件（不用构建）。主机端在 dsh 的 Web 服务器上挂 `/share-space/`，带上口令转发给服务器；每个请求先过 dsh 自己的 Host/Origin 和登录 cookie 检查。别人上传的文件在 dsh 的源下打开时一律加 CSP sandbox 和 nosniff：图片、音视频直接显示，代码和文本（包括 HTML）按纯文本显示，其余一律下载，所以文件里的脚本碰不到 dsh 的接口。
 - `src/share-space.patch.yml`：把插件加进网页版，服务器地址写在这里。dsh 只解析安装锚点（`@deepseek-ai/dsh/package.json`）依赖闭包里的包，所以 build.sh 把插件拷进 `dsh/node_modules/`，并在那个 package.json 里登记成依赖。

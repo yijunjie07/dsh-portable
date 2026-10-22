@@ -5,5 +5,5 @@
     - id: share-space
       name: dsh-portable-share-space
       config:
-        url: https://mochif.com/share-space
+        url: https://c.mochif.com
         configFile: !!js "dshHomePath('share-space.json')"
