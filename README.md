@@ -1,5 +1,14 @@
 # dsh-portable
 
+<p>
+  <a href="https://skillicons.dev">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://skillicons.dev/icons?i=js,python,bash,docker&amp;theme=dark">
+      <img src="https://skillicons.dev/icons?i=js,python,bash,docker&amp;theme=light" alt="JavaScript · Python · Shell · Docker" width="181" height="40">
+    </picture>
+  </a>
+</p>
+
 把官方 DeepSeek Harness（网页版 `dsh web`）装进 U 盘，插到任何电脑上都能跑。支持 Apple Silicon Mac 和 64 位 Windows。
 
 ## 安装到 U 盘
