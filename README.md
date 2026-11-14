@@ -1,15 +1,28 @@
-# dsh-portable
+<h1 align="center">dsh-portable</h1>
 
-<p>
-  <a href="https://skillicons.dev">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://skillicons.dev/icons?i=js,python,bash,docker&amp;theme=dark">
-      <img src="https://skillicons.dev/icons?i=js,python,bash,docker&amp;theme=light" alt="JavaScript · Python · Shell · Docker" width="181" height="40">
-    </picture>
-  </a>
+<p align="center"><strong>把 DeepSeek Harness 装进 U 盘，配置与会话随身带走</strong></p>
+<p align="center">Portable DeepSeek Harness for Apple Silicon Mac and Windows x64</p>
+
+<p align="center">
+  <a href="#安装到-u-盘"><img src="https://img.shields.io/static/v1?label=macOS&amp;message=Apple%20Silicon&amp;color=000000&amp;style=for-the-badge&amp;logo=apple&amp;logoColor=white" alt="macOS: Apple Silicon"></a>
+  <a href="#u-盘内容"><img src="https://img.shields.io/static/v1?label=Windows&amp;message=x64&amp;color=0078D4&amp;style=for-the-badge" alt="Windows: x64"></a>
+  <a href="#共享空间插件"><img src="https://img.shields.io/static/v1?label=JavaScript&amp;message=Plugin&amp;color=F7DF1E&amp;style=for-the-badge&amp;logo=javascript&amp;logoColor=white" alt="JavaScript: Plugin"></a>
+  <a href="#共享空间插件"><img src="https://img.shields.io/static/v1?label=Python&amp;message=Server&amp;color=3776AB&amp;style=for-the-badge&amp;logo=python&amp;logoColor=white" alt="Python: Server"></a>
+  <a href="#安装到-u-盘"><img src="https://img.shields.io/static/v1?label=Shell&amp;message=Build&amp;color=4EAA25&amp;style=for-the-badge&amp;logo=gnubash&amp;logoColor=white" alt="Shell: Build"></a>
+  <a href="server/docker-compose.yml"><img src="https://img.shields.io/static/v1?label=Docker&amp;message=Server&amp;color=2496ED&amp;style=for-the-badge&amp;logo=docker&amp;logoColor=white" alt="Docker: Server"></a>
 </p>
 
-把官方 DeepSeek Harness（网页版 `dsh web`）装进 U 盘，插到任何电脑上都能跑。支持 Apple Silicon Mac 和 64 位 Windows。
+<p align="center">
+  <a href="build.sh">构建脚本</a> · <a href="server/">服务端</a> · <a href="https://github.com/yijunjie07/dsh-portable/issues">问题反馈</a>
+</p>
+
+<p align="center">
+  <strong><a href="#安装到-u-盘">部署安装</a> · <a href="#u-盘内容">U 盘结构</a> · <a href="#设计">实现设计</a> · <a href="#共享空间插件">共享空间</a></strong>
+</p>
+
+---
+
+使用官方 `dsh web`，支持 Apple Silicon Mac 和 Windows x64。配置与会话保存在 U 盘中，工作区按电脑分别记录。
 
 ## 安装到 U 盘
 
